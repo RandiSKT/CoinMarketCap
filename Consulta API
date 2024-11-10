@@ -1,0 +1,46 @@
+function fetchCryptoPricesForAllSheets() {
+  const sheets = ["Conservadora", "Moderada", "Risco"]; // Nomes das planilhas
+  const apiKey = "SUA_CHAVE_DE_API"; // Insira sua chave de API do CoinMarketCap
+
+  sheets.forEach(sheetName => {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    
+    // Determina a última linha dos tokens com base na célula antes do "Total"
+    const lastRow = sheet.getRange("B:B").createTextFinder("Total").findNext().getRow() - 1;
+    const range = sheet.getRange(4, 2, lastRow - 3); // Seleciona B4 até a linha anterior a "Total"
+    
+    // Extrai e formata os símbolos em uma string separada por vírgulas
+    const symbols = range.getValues().flat().join(",");
+    
+    const url = `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=${symbols}&convert=USD`;
+    const options = {
+      method: "GET",
+      headers: {
+        "X-CMC_PRO_API_KEY": apiKey,
+        "Accept": "application/json"
+      },
+      muteHttpExceptions: true
+    };
+    
+    try {
+      // Faz a requisição para a API
+      const response = UrlFetchApp.fetch(url, options);
+      const json = JSON.parse(response.getContentText());
+
+      // Insere os preços formatados como moeda na coluna C ao lado de cada símbolo
+      const tokens = symbols.split(",");
+      tokens.forEach((symbol, index) => {
+        const price = json.data[symbol]?.quote?.USD?.price || "N/A";
+        const cell = sheet.getRange(index + 4, 3); // Célula para inserir o preço
+        cell.setValue(price);
+
+        // Aplica a formatação de moeda apenas se o preço não for "N/A"
+        if (price !== "N/A") {
+          cell.setNumberFormat('"$"#,##0.00'); // Formato de moeda em dólar
+        }
+      });
+    } catch (error) {
+      Logger.log(`Erro ao buscar dados para ${sheetName}: ` + error);
+    }
+  });
+}
